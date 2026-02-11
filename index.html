@@ -6,28 +6,26 @@
     <title>SDIPP Volunteer Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --sdipp-primary: #dc2626; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         .sdipp-gradient { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); }
         .sdipp-card { background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: all 0.2s ease; }
         .sdipp-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-2px); }
-        .sdipp-btn { border-radius: 12px; padding: 12px 24px; font-weight: 600; transition: all 0.2s ease; cursor: pointer; border: none; }
+        .sdipp-btn { border-radius: 12px; padding: 12px 24px; font-weight: 600; transition: all 0.2s ease; cursor: pointer; }
         .sdipp-btn-primary { background: var(--sdipp-primary); color: white; }
         .sdipp-btn-primary:hover:not(:disabled) { background: #b91c1c; transform: translateY(-1px); }
         .sdipp-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         input[type="checkbox"]:checked, input[type="radio"]:checked { background-color: #dc2626; border-color: #dc2626; }
         .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal.show { display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .modal-content { background: white; border-radius: 16px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; }
+        .modal-content { background: white; border-radius: 16px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; }
         .probation-banner { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
         .training-required { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
         .loading { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 9999; }
         .loading.show { display: block; }
         .badge { position: relative; display: inline-block; }
         .badge-icon { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .registered-badge { background: #10b981; color: white; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -39,7 +37,7 @@
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, arrayUnion, arrayRemove, query, where, orderBy, serverTimestamp, increment, Timestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-        // ===== FIREBASE CONFIG - REPLACE WITH YOUR CONFIG =====
+        // REPLACE WITH YOUR FIREBASE CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyAUBj3-QxahYuhxjdkOfIAJzGtXiLp3_RA",
             authDomain: "sdipp-volunteer-portal.firebaseapp.com",
@@ -53,56 +51,26 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // ===== STATE VARIABLES =====
-        let currentUser = null;
-        let currentUserData = null;
-        let allEvents = [];
-        let allVolunteers = [];
-        let allRewards = [];
-        let allTags = [];
-        let currentView = 'main';
-        let selectedVolunteerId = null;
-        let selectedEventForDetails = null;
+        let currentUser = null, currentUserData = null, allEvents = [], allVolunteers = [], allRewards = [], allTags = ['General Training', 'Pediatric', 'Health Education', 'CPR', 'Community Health', 'Sports Injury'];
+        let currentView = 'main', selectedVolunteerId = null;
 
-        function showLoading() { 
-            document.getElementById('loading').classList.add('show'); 
-        }
-        
-        function hideLoading() { 
-            document.getElementById('loading').classList.remove('show'); 
-        }
+        function showLoading() { document.getElementById('loading').classList.add('show'); }
+        function hideLoading() { document.getElementById('loading').classList.remove('show'); }
 
-        // ===== AUTHENTICATION FUNCTIONS =====
+        // AUTH FUNCTIONS
         async function signUp(email, password, userData) {
             try {
                 showLoading();
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await updateProfile(userCredential.user, { 
-                    displayName: `${userData.firstName} ${userData.lastName}` 
-                });
-                
+                await updateProfile(userCredential.user, { displayName: `${userData.firstName} ${userData.lastName}` });
                 await setDoc(doc(db, 'users', userCredential.user.uid), {
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
-                    email: email,
-                    role: 'volunteer',
-                    interests: userData.interests || [],
-                    population: userData.population || [],
+                    firstName: userData.firstName, lastName: userData.lastName, email, role: 'volunteer',
+                    interests: userData.interests || [], population: userData.population || [],
                     emailNotifications: userData.emailNotifications || false,
-                    hours: 0,
-                    points: 10,
-                    rank: 'Novice',
-                    registeredEvents: [],
-                    completedEvents: [],
-                    isTrainingCompleted: false,
-                    absences: 0,
-                    isProbation: false,
-                    probationUntil: null,
-                    isVolunteerOfQuarter: false,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
+                    hours: 0, points: 10, rank: 'Novice', registeredEvents: [], completedEvents: [],
+                    isTrainingCompleted: false, absences: 0, isProbation: false, probationUntil: null,
+                    isVolunteerOfQuarter: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
                 });
-                
                 await new Promise(r => setTimeout(r, 1000));
                 hideLoading();
                 return { success: true };
@@ -130,23 +98,15 @@
             window.location.reload();
         }
 
-        // ===== FIRESTORE FUNCTIONS =====
+        // FIRESTORE FUNCTIONS
         async function getCurrentUserData(userId) {
             const userDoc = await getDoc(doc(db, 'users', userId));
             if (!userDoc.exists()) return null;
-            
             const data = { id: userDoc.id, ...userDoc.data() };
-            
-            // Check probation expiry
             if (data.isProbation && data.probationUntil && new Date() > data.probationUntil.toDate()) {
-                await updateDoc(doc(db, 'users', userId), {
-                    isProbation: false,
-                    probationUntil: null,
-                    absences: 0
-                });
+                await updateDoc(doc(db, 'users', userId), { isProbation: false, probationUntil: null, absences: 0 });
                 data.isProbation = false;
             }
-            
             return data;
         }
 
@@ -174,83 +134,34 @@
             }
         }
 
-        async function getAllTags() {
-            try {
-                const snapshot = await getDocs(collection(db, 'tags'));
-                return snapshot.docs.map(d => ({ id: d.id, name: d.data().name }));
-            } catch (e) {
-                return [
-                    { id: '1', name: 'General Training' },
-                    { id: '2', name: 'Pediatric' },
-                    { id: '3', name: 'Health Education' },
-                    { id: '4', name: 'CPR' },
-                    { id: '5', name: 'Community Health' }
-                ];
-            }
-        }
-
-        async function createTag(tagName) {
-            const tagRef = doc(collection(db, 'tags'));
-            await setDoc(tagRef, { 
-                name: tagName, 
-                createdAt: serverTimestamp() 
-            });
-            return { success: true };
-        }
-
-        async function deleteTag(tagId) {
-            await deleteDoc(doc(db, 'tags', tagId));
-            return { success: true };
-        }
-
-        async function registerForEvent(eventId, userId, answers = {}) {
+        async function registerForEvent(eventId, userId) {
             try {
                 const userDoc = await getDoc(doc(db, 'users', userId));
                 const userData = userDoc.data();
-                
-                if (userData.isProbation) {
-                    throw new Error('You are on probation and cannot register');
-                }
+                if (userData.isProbation) throw new Error('You are on probation');
                 
                 const eventDoc = await getDoc(doc(db, 'events', eventId));
                 if (!eventDoc.exists()) throw new Error('Event not found');
                 const event = eventDoc.data();
                 
                 const isTraining = event.tags?.some(t => t.toLowerCase().includes('general training'));
-                if (!isTraining && !userData.isTrainingCompleted) {
-                    throw new Error('Complete General Training first');
-                }
-                
-                if (event.registeredCount >= event.maxCapacity) {
-                    throw new Error('Event is full');
-                }
-                
-                if (event.registeredVolunteers?.includes(userId)) {
-                    throw new Error('Already registered');
-                }
+                if (!isTraining && !userData.isTrainingCompleted) throw new Error('Complete General Training first');
+                if (event.registeredCount >= event.maxCapacity) throw new Error('Event full');
+                if (event.registeredVolunteers?.includes(userId)) throw new Error('Already registered');
                 
                 await updateDoc(doc(db, 'events', eventId), {
                     registeredVolunteers: arrayUnion(userId),
                     registeredCount: increment(1)
                 });
-                
                 await updateDoc(doc(db, 'users', userId), {
                     registeredEvents: arrayUnion(eventId),
                     points: increment(5)
                 });
-                
                 await setDoc(doc(db, 'attendance', `${eventId}_${userId}`), {
-                    eventId: eventId,
-                    userId: userId,
-                    eventTitle: event.title,
-                    eventDate: event.date,
-                    hoursEarned: 0,
-                    pointsEarned: 5,
-                    status: 'registered',
-                    registeredAt: serverTimestamp(),
-                    answers: answers
+                    eventId, userId, eventTitle: event.title, eventDate: event.date,
+                    hoursEarned: 0, pointsEarned: 5, status: 'registered',
+                    registeredAt: serverTimestamp()
                 });
-                
                 return { success: true };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -260,17 +171,14 @@
         async function createEvent(eventData) {
             try {
                 const eventRef = doc(collection(db, 'events'));
-                const eventDate = new Date(eventData.date + 'T00:00:00');
-                
                 await setDoc(eventRef, {
                     ...eventData,
-                    date: Timestamp.fromDate(eventDate),
+                    date: Timestamp.fromDate(new Date(eventData.date)),
                     registeredCount: 0,
                     registeredVolunteers: [],
                     createdBy: currentUser.uid,
                     createdAt: serverTimestamp()
                 });
-                
                 return { success: true };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -280,10 +188,7 @@
         async function updateEvent(eventId, eventData) {
             try {
                 const updateData = { ...eventData };
-                if (eventData.date) {
-                    const eventDate = new Date(eventData.date + 'T00:00:00');
-                    updateData.date = Timestamp.fromDate(eventDate);
-                }
+                if (eventData.date) updateData.date = Timestamp.fromDate(new Date(eventData.date));
                 await updateDoc(doc(db, 'events', eventId), updateData);
                 return { success: true };
             } catch (error) {
@@ -292,8 +197,66 @@
         }
 
         async function deleteEvent(eventId) {
-            await deleteDoc(doc(db, 'events', eventId));
-            return { success: true };
+            try {
+                await deleteDoc(doc(db, 'events', eventId));
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function createReward(rewardData) {
+            try {
+                const rewardRef = doc(collection(db, 'rewards'));
+                await setDoc(rewardRef, {
+                    ...rewardData,
+                    available: true,
+                    createdAt: serverTimestamp()
+                });
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function updateReward(rewardId, rewardData) {
+            try {
+                await updateDoc(doc(db, 'rewards', rewardId), rewardData);
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function deleteReward(rewardId) {
+            try {
+                await deleteDoc(doc(db, 'rewards', rewardId));
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function redeemReward(rewardId, userId) {
+            try {
+                const userDoc = await getDoc(doc(db, 'users', userId));
+                const userData = userDoc.data();
+                const rewardDoc = await getDoc(doc(db, 'rewards', rewardId));
+                const reward = rewardDoc.data();
+                
+                if (userData.points < reward.pointsCost) throw new Error('Not enough points');
+                
+                await setDoc(doc(collection(db, 'redemptions')), {
+                    userId, rewardId, rewardName: reward.name,
+                    pointsSpent: reward.pointsCost,
+                    redeemedAt: serverTimestamp(),
+                    status: 'pending'
+                });
+                await updateDoc(doc(db, 'users', userId), { points: increment(-reward.pointsCost) });
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
         }
 
         async function markAllAttended(eventId) {
@@ -310,20 +273,14 @@
                         pointsEarned: event.pointsAwarded || 0,
                         markedAt: serverTimestamp()
                     });
-                    
                     const updateData = {
                         hours: increment(event.hoursAwarded || 0),
                         points: increment(event.pointsAwarded || 0),
                         completedEvents: arrayUnion(eventId)
                     };
-                    
-                    if (isTraining) {
-                        updateData.isTrainingCompleted = true;
-                    }
-                    
+                    if (isTraining) updateData.isTrainingCompleted = true;
                     batch.update(doc(db, 'users', userId), updateData);
                 }
-                
                 await batch.commit();
                 return { success: true };
             } catch (error) {
@@ -345,36 +302,25 @@
                         hoursEarned: event.hoursAwarded || 0,
                         pointsEarned: event.pointsAwarded || 0
                     });
-                    
                     const updateData = {
                         hours: increment(event.hoursAwarded || 0),
                         points: increment(event.pointsAwarded || 0),
                         completedEvents: arrayUnion(eventId)
                     };
-                    
-                    if (isTraining) {
-                        updateData.isTrainingCompleted = true;
-                    }
-                    
+                    if (isTraining) updateData.isTrainingCompleted = true;
                     await updateDoc(doc(db, 'users', userId), updateData);
                 } else {
-                    await updateDoc(doc(db, 'attendance', `${eventId}_${userId}`), { 
-                        status: 'absent' 
-                    });
-                    
+                    await updateDoc(doc(db, 'attendance', `${eventId}_${userId}`), { status: 'absent' });
                     const newAbsences = (userData.absences || 0) + 1;
                     const updateData = { absences: newAbsences };
-                    
                     if (newAbsences >= 3) {
                         const probationEnd = new Date();
                         probationEnd.setMonth(probationEnd.getMonth() + 3);
                         updateData.isProbation = true;
                         updateData.probationUntil = Timestamp.fromDate(probationEnd);
                     }
-                    
                     await updateDoc(doc(db, 'users', userId), updateData);
                 }
-                
                 return { success: true };
             } catch (error) {
                 return { success: false, error: error.message };
@@ -391,90 +337,22 @@
             return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         }
 
-        // ===== UTILITY FUNCTIONS =====
-        function downloadCalendar() {
-            const registered = allEvents.filter(e => currentUserData.registeredEvents?.includes(e.id));
-            let icsContent = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SDIPP//EN\nCALSCALE:GREGORIAN\n';
-            
-            registered.forEach(event => {
-                const eventDate = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-                const startDateTime = new Date(eventDate);
-                const [startHour, startMin] = (event.startTime || '09:00').split(':');
-                startDateTime.setHours(parseInt(startHour), parseInt(startMin), 0);
-                
-                const endDateTime = new Date(eventDate);
-                const [endHour, endMin] = (event.endTime || '10:00').split(':');
-                endDateTime.setHours(parseInt(endHour), parseInt(endMin), 0);
-                
-                const formatDate = (d) => {
-                    const year = d.getFullYear();
-                    const month = String(d.getMonth() + 1).padStart(2, '0');
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const hours = String(d.getHours()).padStart(2, '0');
-                    const minutes = String(d.getMinutes()).padStart(2, '0');
-                    const seconds = String(d.getSeconds()).padStart(2, '0');
-                    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
-                };
-                
-                icsContent += 'BEGIN:VEVENT\n';
-                icsContent += `UID:${event.id}@sdipp.org\n`;
-                icsContent += `DTSTAMP:${formatDate(new Date())}\n`;
-                icsContent += `DTSTART:${formatDate(startDateTime)}\n`;
-                icsContent += `DTEND:${formatDate(endDateTime)}\n`;
-                icsContent += `SUMMARY:${event.title}\n`;
-                icsContent += `DESCRIPTION:${(event.description || '').replace(/\n/g, '\\n')}\n`;
-                icsContent += `LOCATION:${event.location || ''}\n`;
-                if (event.locationLink) {
-                    icsContent += `URL:${event.locationLink}\n`;
-                }
-                icsContent += 'END:VEVENT\n';
-            });
-            
-            icsContent += 'END:VCALENDAR';
-            
-            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'SDIPP_Events.ics';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+        // UI RENDERING
+        function render() {
+            const app = document.getElementById('app');
+            if (!currentUser) app.innerHTML = renderAuthPage();
+            else if (!currentUserData) app.innerHTML = '<div class="min-h-screen flex items-center justify-center"><p class="text-xl">Loading...</p></div>';
+            else if (currentUserData.role === 'admin') app.innerHTML = currentView === 'volunteer-detail' ? renderVolunteerDetailPage() : renderAdminDashboard();
+            else app.innerHTML = renderVolunteerDashboard();
+            attachEventListeners();
         }
 
         function getBadge() {
             if (!currentUserData) return '';
             if (currentUserData.isVolunteerOfQuarter) return '👑';
+            if (currentUserData.rank === 'Novice') return '🌱';
             if (currentUserData.rank === 'Senior') return '🌳';
             return '🌱';
-        }
-
-        function showConfetti() {
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-            setTimeout(() => confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } }), 250);
-            setTimeout(() => confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } }), 400);
-        }
-
-        function formatDate(timestamp) {
-            if (!timestamp) return '';
-            const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-
-        // ===== RENDERING FUNCTIONS =====
-        function render() {
-            const app = document.getElementById('app');
-            if (!currentUser) {
-                app.innerHTML = renderAuthPage();
-            } else if (!currentUserData) {
-                app.innerHTML = '<div class="min-h-screen flex items-center justify-center"><p class="text-xl">Loading...</p></div>';
-            } else if (currentUserData.role === 'admin') {
-                app.innerHTML = currentView === 'volunteer-detail' ? renderVolunteerDetailPage() : renderAdminDashboard();
-            } else {
-                app.innerHTML = renderVolunteerDashboard();
-            }
-            attachEventListeners();
         }
 
         function renderAuthPage() {
@@ -484,7 +362,6 @@
                         <img src="./sdipp-logo.webp" alt="SDIPP" class="mx-auto mb-4" style="max-width:200px" onerror="this.style.display='none'" />
                         <h1 class="text-3xl font-bold">SDIPP Volunteer Portal</h1>
                     </div>
-                    
                     <div id="login-form">
                         <h2 class="text-2xl font-bold mb-4">Sign In</h2>
                         <div id="login-error" class="hidden mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm"></div>
@@ -493,7 +370,6 @@
                         <button onclick="handleLogin()" class="sdipp-btn sdipp-btn-primary w-full mb-3">Sign In</button>
                         <button onclick="showSignup()" class="w-full text-red-600 hover:underline">Create Account</button>
                     </div>
-                    
                     <div id="signup-form" class="hidden">
                         <h2 class="text-2xl font-bold mb-4">Join SDIPP</h2>
                         <div id="signup-error" class="hidden mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm"></div>
@@ -503,16 +379,14 @@
                         </div>
                         <input type="email" id="signup-email" placeholder="Email *" class="w-full px-4 py-3 border rounded-xl mb-3" />
                         <input type="password" id="signup-password" placeholder="Password *" class="w-full px-4 py-3 border rounded-xl mb-4" />
-                        
                         <div class="mb-3">
                             <label class="font-semibold text-sm mb-2 block">Interests *</label>
                             <div class="grid grid-cols-2 gap-2">
-                                ${['Pediatric', 'Health Education', 'Community Health', 'Sports Injury', 'Geriatric', 'CPR'].map(i => 
+                                ${['Pediatric', 'Health Education', 'Community Health', 'Sports Injury'].map(i => 
                                     `<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="interests" value="${i}" class="rounded" />${i}</label>`
                                 ).join('')}
                             </div>
                         </div>
-                        
                         <div class="mb-4">
                             <label class="font-semibold text-sm mb-2 block">Population *</label>
                             <div class="grid grid-cols-2 gap-2">
@@ -521,17 +395,10 @@
                                 ).join('')}
                             </div>
                         </div>
-                        
                         <div class="mb-4 p-4 bg-blue-50 rounded-xl">
-                            <label class="flex items-start gap-3">
-                                <input type="checkbox" id="email-consent" class="mt-1 rounded" />
-                                <div class="text-sm">
-                                    <p class="font-semibold mb-1">📧 Email Updates</p>
-                                    <p>Get event notifications</p>
-                                </div>
-                            </label>
+                            <label class="flex items-start gap-3"><input type="checkbox" id="email-consent" class="mt-1 rounded" />
+                            <div class="text-sm"><p class="font-semibold mb-1">📧 Email Updates</p><p>Get event notifications</p></div></label>
                         </div>
-                        
                         <button onclick="handleSignup()" class="sdipp-btn sdipp-btn-primary w-full mb-3">Create Account</button>
                         <button onclick="showLogin()" class="w-full text-red-600 hover:underline">Back to Sign In</button>
                     </div>
@@ -548,15 +415,11 @@
             
             let banner = '';
             if (currentUserData.isProbation) {
-                banner = `<div class="probation-banner">
-                    <h3 class="font-bold mb-2">⚠️ On Probation</h3>
-                    <p>Until ${currentUserData.probationUntil?.toDate().toLocaleDateString()} (${currentUserData.absences} absences)</p>
-                </div>`;
+                banner = `<div class="probation-banner"><h3 class="font-bold mb-2">⚠️ On Probation</h3>
+                    <p>Until ${currentUserData.probationUntil?.toDate().toLocaleDateString()} (${currentUserData.absences} absences)</p></div>`;
             } else if (!currentUserData.isTrainingCompleted) {
-                banner = `<div class="training-required">
-                    <h3 class="font-bold mb-2">📚 Training Required</h3>
-                    <p>Complete <strong>General Training</strong> first</p>
-                </div>`;
+                banner = `<div class="training-required"><h3 class="font-bold mb-2">📚 Training Required</h3>
+                    <p>Complete <strong>General Training</strong> first</p></div>`;
             }
             
             return `<div class="min-h-screen bg-gray-50">
@@ -577,101 +440,71 @@
                     ${banner}
                     
                     <div class="grid md:grid-cols-4 gap-4 mb-8">
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm text-gray-600 mb-1">Hours</p>
-                            <p class="text-3xl font-bold">${currentUserData.hours || 0}</p>
-                        </div>
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm text-gray-600 mb-1">Rank</p>
-                            <p class="text-2xl font-bold">${currentUserData.rank || 'Novice'}</p>
-                        </div>
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm text-gray-600 mb-1">Points</p>
-                            <p class="text-3xl font-bold">${currentUserData.points || 0}</p>
-                        </div>
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm text-gray-600 mb-1">Events</p>
-                            <p class="text-3xl font-bold">${registered.length}</p>
-                        </div>
+                        <div class="sdipp-card p-6"><p class="text-sm text-gray-600 mb-1">Hours</p><p class="text-3xl font-bold">${currentUserData.hours || 0}</p></div>
+                        <div class="sdipp-card p-6"><p class="text-sm text-gray-600 mb-1">Rank</p><p class="text-2xl font-bold">${currentUserData.rank || 'Novice'}</p></div>
+                        <div class="sdipp-card p-6"><p class="text-sm text-gray-600 mb-1">Points</p><p class="text-3xl font-bold">${currentUserData.points || 0}</p></div>
+                        <div class="sdipp-card p-6"><p class="text-sm text-gray-600 mb-1">Events</p><p class="text-3xl font-bold">${registered.length}</p></div>
                     </div>
 
-                    ${registered.length > 0 ? `
-                        <div class="mb-8">
-                            <div class="flex justify-between items-center mb-4">
-                                <h2 class="text-2xl font-bold">Your Registered Events</h2>
-                                <button onclick="downloadCalendar()" class="sdipp-btn sdipp-btn-primary">📅 Download Calendar</button>
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold mb-4">Your Growth</h2>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div class="sdipp-card p-6">
+                                <h3 class="font-bold mb-4">Event Types Attended</h3>
+                                <canvas id="eventTypesChart" style="max-height:250px"></canvas>
                             </div>
-                            <div class="space-y-4">
-                                ${registered.map(e => renderRegisteredEventCard(e)).join('')}
+                            <div class="sdipp-card p-6">
+                                <h3 class="font-bold mb-4">Monthly Activity</h3>
+                                <canvas id="monthlyActivityChart" style="max-height:250px"></canvas>
                             </div>
                         </div>
-                    ` : ''}
+                    </div>
 
                     <div class="mb-8">
                         <h2 class="text-2xl font-bold mb-4">Available Events</h2>
                         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            ${upcoming.map(e => renderEventCard(e)).join('')}
+                            ${upcoming.map(e => {
+                                const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+                                const isFull = e.registeredCount >= e.maxCapacity;
+                                const isTraining = e.tags?.some(t => t.toLowerCase().includes('general training'));
+                                const canReg = !currentUserData.isProbation && (currentUserData.isTrainingCompleted || isTraining);
+                                return `<div class="sdipp-card p-5">
+                                    <h3 class="font-bold text-lg mb-2">${e.title}</h3>
+                                    <div class="flex gap-2 mb-3">${(e.tags || []).map(t => 
+                                        `<span class="px-2 py-1 ${t.toLowerCase().includes('general training') ? 'bg-purple-100 text-purple-700' : 'bg-red-50 text-red-700'} rounded text-xs">${t}</span>`
+                                    ).join('')}</div>
+                                    <p class="text-sm mb-3">${e.description || ''}</p>
+                                    <p class="text-sm text-gray-600 mb-3">📅 ${d.toLocaleDateString()} • ${e.startTime}-${e.endTime}<br>⏱️ ${e.hoursAwarded || 0}h • ${e.pointsAwarded || 0}pts</p>
+                                    <button onclick="handleRegister('${e.id}')" ${!canReg || isFull ? 'disabled' : ''} 
+                                        class="sdipp-btn w-full ${!canReg || isFull ? 'bg-gray-200 text-gray-400' : 'sdipp-btn-primary'}">
+                                        ${isFull ? 'Full' : !canReg ? 'Locked' : 'Register'}
+                                    </button>
+                                </div>`;
+                            }).join('')}
                         </div>
                     </div>
-                </div>
 
-                <div id="event-details-modal" class="modal">
-                    <div class="modal-content p-6">
-                        <div id="event-details-content"></div>
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold mb-4">Redeem Rewards</h2>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            ${allRewards.map(r => `<div class="sdipp-card p-6 text-center">
+                                <div class="text-5xl mb-3">${r.icon || '🎁'}</div>
+                                <h3 class="font-bold text-lg mb-2">${r.name}</h3>
+                                <p class="text-sm text-gray-600 mb-3">${r.description || ''}</p>
+                                <p class="text-2xl font-bold text-red-600 mb-4">${r.pointsCost} pts</p>
+                                <button onclick="handleRedeemReward('${r.id}')" ${(currentUserData.points || 0) < r.pointsCost ? 'disabled' : ''}
+                                    class="sdipp-btn w-full ${(currentUserData.points || 0) >= r.pointsCost ? 'sdipp-btn-primary' : 'bg-gray-200 text-gray-400'}">
+                                    ${(currentUserData.points || 0) >= r.pointsCost ? 'Redeem' : 'Locked'}
+                                </button>
+                            </div>`).join('')}
+                        </div>
                     </div>
-                </div>
 
-                <div id="success-modal" class="modal">
-                    <div class="modal-content p-8 text-center">
-                        <div class="text-6xl mb-4">🎉</div>
-                        <h2 class="text-2xl font-bold mb-4">Registration Complete!</h2>
-                        <p class="text-lg mb-6">Thank you so much for volunteering with us!</p>
-                        <button onclick="closeModal('success-modal')" class="sdipp-btn sdipp-btn-primary">Close</button>
+                    <div class="sdipp-card p-6 bg-gradient-to-br from-blue-50 to-indigo-50">
+                        <h3 class="text-xl font-bold mb-3">Request Official Hours</h3>
+                        <a href="https://docs.google.com/forms/d/e/1FAIpQLSciXetsMs3y6Xdf7iVHA4pFH1WtGFaU0V_LNqibdWjZL2YBJw/viewform" 
+                            target="_blank" class="sdipp-btn sdipp-btn-primary inline-block w-full text-center">Request Document →</a>
                     </div>
-                </div>
-            </div>`;
-        }
-
-        function renderEventCard(event) {
-            const d = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-            const isFull = event.registeredCount >= event.maxCapacity;
-            const isTraining = event.tags?.some(t => t.toLowerCase().includes('general training'));
-            const canReg = !currentUserData.isProbation && (currentUserData.isTrainingCompleted || isTraining);
-            
-            return `<div class="sdipp-card p-5 cursor-pointer" onclick="showEventDetails('${event.id}')">
-                <h3 class="font-bold text-lg mb-2">${event.title}</h3>
-                <div class="flex gap-2 mb-3">
-                    ${(event.tags || []).map(t => 
-                        `<span class="px-2 py-1 ${t.toLowerCase().includes('general training') ? 'bg-purple-100 text-purple-700' : 'bg-red-50 text-red-700'} rounded text-xs">${t}</span>`
-                    ).join('')}
-                </div>
-                <p class="text-sm text-gray-600 mb-3">📅 ${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                <p class="text-sm text-gray-600 mb-3">🕐 ${event.startTime || ''} - ${event.endTime || ''}</p>
-                <p class="text-sm text-gray-600 mb-4">📍 ${event.location || ''}</p>
-                <button class="sdipp-btn w-full ${!canReg || isFull ? 'bg-gray-200 text-gray-400' : 'sdipp-btn-primary'}">
-                    ${isFull ? 'Full' : canReg ? 'View Details' : 'Locked'}
-                </button>
-            </div>`;
-        }
-
-        function renderRegisteredEventCard(event) {
-            const d = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-            return `<div class="sdipp-card p-5">
-                <div class="flex justify-between items-start mb-3">
-                    <div class="flex-1">
-                        <h3 class="font-bold text-lg mb-2">${event.title}</h3>
-                        <p class="text-sm text-gray-600 mb-1">📅 ${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                        <p class="text-sm text-gray-600 mb-1">🕐 ${event.startTime || ''} - ${event.endTime || ''}</p>
-                        <p class="text-sm text-gray-600 mb-1">📍 ${event.location || ''}</p>
-                        ${event.locationLink ? `
-                            <p class="text-sm mt-2">
-                                <a href="${event.locationLink}" target="_blank" class="text-blue-600 hover:underline">
-                                    View on Google Maps →
-                                </a>
-                            </p>
-                        ` : ''}
-                    </div>
-                    <div class="registered-badge">✅ Registered</div>
                 </div>
             </div>`;
         }
@@ -684,471 +517,92 @@
                         <button onclick="handleLogout()" class="px-4 py-2 hover:bg-gray-100 rounded-lg">Logout</button>
                     </div>
                 </header>
-                
                 <div class="max-w-7xl mx-auto px-6 py-8">
-                    <div class="flex gap-2 mb-6 border-b overflow-x-auto">
-                        <button onclick="setAdminTab('events')" id="tab-events" class="px-6 py-3 font-semibold whitespace-nowrap">Events</button>
-                        <button onclick="setAdminTab('tags')" id="tab-tags" class="px-6 py-3 font-semibold whitespace-nowrap">Tags</button>
-                        <button onclick="setAdminTab('attendance')" id="tab-attendance" class="px-6 py-3 font-semibold whitespace-nowrap">Attendance</button>
-                        <button onclick="setAdminTab('volunteers')" id="tab-volunteers" class="px-6 py-3 font-semibold whitespace-nowrap">Volunteers</button>
+                    <div class="flex gap-2 mb-6 border-b">
+                        <button onclick="setAdminTab('events')" id="tab-events" class="px-6 py-3 font-semibold">Events</button>
+                        <button onclick="setAdminTab('rewards')" id="tab-rewards" class="px-6 py-3 font-semibold">Rewards</button>
+                        <button onclick="setAdminTab('attendance')" id="tab-attendance" class="px-6 py-3 font-semibold">Attendance</button>
+                        <button onclick="setAdminTab('volunteers')" id="tab-volunteers" class="px-6 py-3 font-semibold">Volunteers</button>
                     </div>
                     <div id="admin-content"></div>
                 </div>
-            </div>`;
-        }
 
-        function renderVolunteerDetailPage() {
-            const v = allVolunteers.find(vol => vol.id === selectedVolunteerId);
-            if (!v) { 
-                currentView = 'main'; 
-                render(); 
-                return ''; 
-            }
-            
-            return `<div class="min-h-screen bg-gray-50">
-                <header class="bg-white shadow-sm border-b">
-                    <div class="max-w-7xl mx-auto px-6 py-4">
-                        <button onclick="backToAdmin()" class="text-blue-600 mb-2">← Back</button>
-                        <h1 class="text-2xl font-bold">${v.firstName} ${v.lastName}</h1>
-                        <p class="text-gray-600">${v.email}</p>
+                <div id="event-modal" class="modal">
+                    <div class="modal-content p-6">
+                        <div class="flex justify-between mb-4">
+                            <h2 class="text-2xl font-bold" id="event-modal-title">Create Event</h2>
+                            <button onclick="closeModal('event-modal')" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+                        </div>
+                        <div id="event-form-container"></div>
                     </div>
-                </header>
-                
-                <div class="max-w-7xl mx-auto px-6 py-8">
-                    <div class="grid md:grid-cols-4 gap-4 mb-8">
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm mb-1">Hours</p>
-                            <p class="text-3xl font-bold text-blue-600">${v.hours || 0}</p>
+                </div>
+
+                <div id="reward-modal" class="modal">
+                    <div class="modal-content p-6">
+                        <div class="flex justify-between mb-4">
+                            <h2 class="text-2xl font-bold" id="reward-modal-title">Create Reward</h2>
+                            <button onclick="closeModal('reward-modal')" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
                         </div>
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm mb-1">Points</p>
-                            <p class="text-3xl font-bold text-green-600">${v.points || 0}</p>
-                        </div>
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm mb-1">Rank</p>
-                            <p class="text-2xl font-bold">${v.rank || 'Novice'}</p>
-                        </div>
-                        <div class="sdipp-card p-6">
-                            <p class="text-sm mb-1">Absences</p>
-                            <p class="text-3xl font-bold text-red-600">${v.absences || 0}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="sdipp-card p-6">
-                        <h3 class="font-bold mb-4">Event History</h3>
-                        <div id="volunteer-event-history">Loading...</div>
+                        <div id="reward-form-container"></div>
                     </div>
                 </div>
             </div>`;
         }
 
-        // ===== EVENT HANDLERS =====
-        function attachEventListeners() {
-            window.showSignup = () => {
-                document.getElementById('login-form').classList.add('hidden');
-                document.getElementById('signup-form').classList.remove('hidden');
-            };
-
-            window.showLogin = () => {
-                document.getElementById('signup-form').classList.add('hidden');
-                document.getElementById('login-form').classList.remove('hidden');
-            };
-            
-            window.handleLogin = async () => {
-                const email = document.getElementById('login-email').value.trim();
-                const password = document.getElementById('login-password').value;
-                const errorDiv = document.getElementById('login-error');
-                
-                if (!email || !password) {
-                    errorDiv.textContent = 'Fill all fields';
-                    errorDiv.classList.remove('hidden');
-                    return;
-                }
-                
-                errorDiv.classList.add('hidden');
-                const r = await signIn(email, password);
-                if (!r.success) {
-                    errorDiv.textContent = r.error;
-                    errorDiv.classList.remove('hidden');
-                }
-            };
-            
-            window.handleSignup = async () => {
-                const firstName = document.getElementById('signup-firstname').value.trim();
-                const lastName = document.getElementById('signup-lastname').value.trim();
-                const email = document.getElementById('signup-email').value.trim();
-                const password = document.getElementById('signup-password').value;
-                const errorDiv = document.getElementById('signup-error');
-                const interests = Array.from(document.querySelectorAll('input[name="interests"]:checked')).map(el => el.value);
-                const population = Array.from(document.querySelectorAll('input[name="population"]:checked')).map(el => el.value);
-                const emailNotifications = document.getElementById('email-consent').checked;
-                
-                if (!firstName || !lastName || !email || !password || !interests.length || !population.length) {
-                    errorDiv.textContent = 'Fill all required fields';
-                    errorDiv.classList.remove('hidden');
-                    return;
-                }
-                
-                errorDiv.classList.add('hidden');
-                const r = await signUp(email, password, { firstName, lastName, interests, population, emailNotifications });
-                if (!r.success) {
-                    errorDiv.textContent = r.error;
-                    errorDiv.classList.remove('hidden');
-                }
-            };
-            
-            window.handleLogout = logOut;
-            window.downloadCalendar = downloadCalendar;
-            
-            window.handleRegister = async (eventId) => {
-                const r = await registerForEvent(eventId, currentUser.uid);
-                if (r.success) {
-                    showConfetti();
-                    document.getElementById('success-modal').classList.add('show');
-                    await loadData();
-                    render();
-                } else {
-                    alert(r.error);
-                }
-            };
-
-            window.showEventDetails = (eventId) => {
-                const event = allEvents.find(e => e.id === eventId);
-                if (!event) return;
-                
-                const d = event.date?.toDate ? event.date.toDate() : new Date(event.date);
-                const isRegistered = currentUserData.registeredEvents?.includes(eventId);
-                const isFull = event.registeredCount >= event.maxCapacity;
-                const isTraining = event.tags?.some(t => t.toLowerCase().includes('general training'));
-                const canReg = !currentUserData.isProbation && (currentUserData.isTrainingCompleted || isTraining);
-                
-                let questionsHTML = '';
-                if (event.questions && event.questions.length > 0 && !isRegistered) {
-                    questionsHTML = '<div class="space-y-4 mb-6 border-t pt-4">';
-                    questionsHTML += '<h3 class="font-bold text-lg text-gray-900 mb-3">📋 Registration Questions</h3>';
-                    
-                    event.questions.forEach((q, i) => {
-                        questionsHTML += `
-                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                <label class="font-semibold mb-3 block text-gray-900">${q.question}</label>
-                                <div class="space-y-2">
-                                    ${q.options.map(opt => `
-                                        <label class="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded transition">
-                                            <input type="radio" name="question-${i}" value="${opt}" class="rounded" required />
-                                            <span class="text-gray-700">${opt}</span>
-                                        </label>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    questionsHTML += '</div>';
-                }
-                
-                const content = `
-                    <div class="flex justify-between items-start mb-4">
-                        <h2 class="text-2xl font-bold text-gray-900">${event.title}</h2>
-                        <button onclick="closeModal('event-details-modal')" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
-                    </div>
-                    
-                    <div class="space-y-4">
-                        <div class="flex flex-wrap gap-2">
-                            ${(event.tags || []).map(t => 
-                                `<span class="px-3 py-1 ${t.toLowerCase().includes('general training') ? 'bg-purple-100 text-purple-700' : 'bg-red-50 text-red-700'} rounded-lg text-sm font-medium">${t}</span>`
-                            ).join('')}
-                        </div>
-                        
-                        <div class="bg-gradient-to-br from-gray-50 to-blue-50 p-5 rounded-lg border border-gray-200 space-y-3">
-                            <div class="flex items-start gap-3">
-                                <span class="text-2xl">📅</span>
-                                <div>
-                                    <p class="font-semibold text-gray-900">Date</p>
-                                    <p class="text-gray-700">${d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-start gap-3">
-                                <span class="text-2xl">🕐</span>
-                                <div>
-                                    <p class="font-semibold text-gray-900">Time</p>
-                                    <p class="text-gray-700">${event.startTime || ''} - ${event.endTime || ''}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-start gap-3">
-                                <span class="text-2xl">📍</span>
-                                <div>
-                                    <p class="font-semibold text-gray-900">Location</p>
-                                    <p class="text-gray-700">${event.location || ''}</p>
-                                    ${event.locationLink ? `
-                                        <a href="${event.locationLink}" target="_blank" class="text-blue-600 hover:underline font-medium inline-flex items-center gap-1 mt-1">
-                                            🗺️ View on Google Maps →
-                                        </a>
-                                    ` : ''}
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-start gap-3">
-                                <span class="text-2xl">⏱️</span>
-                                <div>
-                                    <p class="font-semibold text-gray-900">Rewards</p>
-                                    <p class="text-gray-700">${event.hoursAwarded || 0} hours • ${event.pointsAwarded || 0} points</p>
-                                    <p class="text-sm text-green-600 font-medium">+5 bonus points for registering!</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        ${event.description ? `
-                            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-                                <p class="text-sm font-semibold text-blue-900 mb-1">About This Event</p>
-                                <p class="text-gray-700">${event.description}</p>
-                            </div>
-                        ` : ''}
-                        
-                        ${isRegistered ? `
-                            <div class="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
-                                <p class="text-green-800 font-semibold flex items-center gap-2">
-                                    <span class="text-2xl">✅</span>
-                                    You are registered for this event!
-                                </p>
-                            </div>
-                        ` : ''}
-                        
-                        ${questionsHTML}
-                        
-                        ${!isRegistered ? `
-                            <button 
-                                onclick="handleRegisterFromModal('${eventId}')" 
-                                ${!canReg || isFull ? 'disabled' : ''} 
-                                class="sdipp-btn w-full text-lg py-4 ${!canReg || isFull ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'sdipp-btn-primary'}">
-                                ${isFull ? '❌ Event Full' : !canReg ? '🔒 ' + (currentUserData.isProbation ? 'On Probation' : 'Complete Training First') : '🎉 Register Now'}
-                            </button>
-                        ` : ''}
-                    </div>
-                `;
-                
-                document.getElementById('event-details-content').innerHTML = content;
-                document.getElementById('event-details-modal').classList.add('show');
-            };
-
-            window.handleRegisterFromModal = async (eventId) => {
-                const event = allEvents.find(e => e.id === eventId);
-                const answers = {};
-                
-                if (event.questions && event.questions.length > 0) {
-                    for (let i = 0; i < event.questions.length; i++) {
-                        const selected = document.querySelector(`input[name="question-${i}"]:checked`);
-                        if (!selected) {
-                            alert(`⚠️ Please answer: ${event.questions[i].question}`);
-                            return;
-                        }
-                        answers[`question_${i}`] = selected.value;
-                        answers[`question_text_${i}`] = event.questions[i].question;
-                    }
-                }
-                
-                const result = await registerForEvent(eventId, currentUser.uid, answers);
-                if (result.success) {
-                    closeModal('event-details-modal');
-                    showConfetti();
-                    document.getElementById('success-modal').classList.add('show');
-                    await loadData();
-                    render();
-                } else {
-                    alert('❌ ' + result.error);
-                }
-            };
-
-            window.closeModal = (modalId) => {
-                document.getElementById(modalId).classList.remove('show');
-            };
-
-            window.setAdminTab = (tab) => {
-                ['events', 'tags', 'attendance', 'volunteers'].forEach(t => {
-                    const btn = document.getElementById(`tab-${t}`);
-                    if (btn) {
-                        btn.classList.remove('text-red-600', 'border-b-2', 'border-red-600');
-                        btn.classList.add('text-gray-600');
-                    }
-                });
-                
-                const activeBtn = document.getElementById(`tab-${tab}`);
-                if (activeBtn) {
-                    activeBtn.classList.remove('text-gray-600');
-                    activeBtn.classList.add('text-red-600', 'border-b-2', 'border-red-600');
-                }
-                
-                const content = document.getElementById('admin-content');
-                if (tab === 'events') {
-                    content.innerHTML = '<p class="text-gray-600">Events management - Create events in Firebase with tags and questions fields</p>';
-                } else if (tab === 'tags') {
-                    content.innerHTML = renderAdminTagsTab();
-                } else if (tab === 'attendance') {
-                    content.innerHTML = renderAdminAttendanceTab();
-                    loadAllAttendance();
-                } else if (tab === 'volunteers') {
-                    content.innerHTML = renderAdminVolunteersTab();
-                }
-            };
-
-            window.handleCreateTag = async () => {
-                const input = document.getElementById('new-tag-input');
-                const tagName = input.value.trim();
-                if (!tagName) {
-                    alert('Enter tag name');
-                    return;
-                }
-                const r = await createTag(tagName);
-                if (r.success) {
-                    input.value = '';
-                    await loadData();
-                    setAdminTab('tags');
-                }
-            };
-
-            window.handleDeleteTag = async (tagId) => {
-                if (confirm('Delete this tag?')) {
-                    await deleteTag(tagId);
-                    await loadData();
-                    setAdminTab('tags');
-                }
-            };
-
-            window.handleMarkAllAttended = async (eventId) => {
-                if (confirm('Mark all as attended?')) {
-                    const r = await markAllAttended(eventId);
-                    if (r.success) {
-                        alert('Done!');
-                        await loadData();
-                        setAdminTab('attendance');
-                    }
-                }
-            };
-
-            window.handleMarkSingleAttendance = async (eventId, userId, status) => {
-                await markAttendance(eventId, userId, status);
-                await loadData();
-                loadAttendanceForEvent(eventId);
-            };
-
-            window.showVolunteerDetail = async (userId) => {
-                selectedVolunteerId = userId;
-                currentView = 'volunteer-detail';
-                render();
-                
-                setTimeout(async () => {
-                    const attendance = await getVolunteerAttendance(userId);
-                    const historyDiv = document.getElementById('volunteer-event-history');
-                    
-                    if (!historyDiv) return;
-                    
-                    if (attendance.length > 0) {
-                        historyDiv.innerHTML = `
-                            <div class="overflow-x-auto">
-                                <table class="w-full">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-4 py-2 text-left text-sm font-semibold">Event</th>
-                                            <th class="px-4 py-2 text-left text-sm font-semibold">Date</th>
-                                            <th class="px-4 py-2 text-left text-sm font-semibold">Hours</th>
-                                            <th class="px-4 py-2 text-left text-sm font-semibold">Points</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y">
-                                        ${attendance.map(att => `
-                                            <tr>
-                                                <td class="px-4 py-2">${att.eventTitle}</td>
-                                                <td class="px-4 py-2 text-sm">${formatDate(att.eventDate)}</td>
-                                                <td class="px-4 py-2 font-semibold text-blue-600">${att.hoursEarned || 0}</td>
-                                                <td class="px-4 py-2 font-semibold text-green-600">${att.pointsEarned || 0}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                    } else {
-                        historyDiv.innerHTML = '<p class="text-gray-500 text-center py-8">No completed events yet</p>';
-                    }
-                }, 100);
-            };
-
-            window.backToAdmin = () => {
-                selectedVolunteerId = null;
-                currentView = 'main';
-                render();
-            };
-
-            async function loadAllAttendance() {
-                for (const e of allEvents) {
-                    if ((e.registeredCount || 0) > 0) {
-                        await loadAttendanceForEvent(e.id);
-                    }
-                }
-            }
-
-            async function loadAttendanceForEvent(eventId) {
-                const attendanceList = await getEventAttendance(eventId);
-                const container = document.getElementById(`attendance-${eventId}`);
-                if (!container) return;
-                
-                if (!attendanceList.length) {
-                    container.innerHTML = '<p class="text-gray-500 py-4">No registrations</p>';
-                    return;
-                }
-                
-                container.innerHTML = `
-                    <div class="space-y-2">
-                        ${attendanceList.map(att => {
-                            const v = allVolunteers.find(vol => vol.id === att.userId);
-                            if (!v) return '';
-                            
-                            return `
-                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <div class="flex gap-3">
-                                        <span class="text-2xl">${att.status === 'attended' ? '✅' : att.status === 'absent' ? '❌' : '⏳'}</span>
-                                        <div>
-                                            <p class="font-semibold text-sm">${v.firstName} ${v.lastName}</p>
-                                        </div>
-                                    </div>
-                                    ${att.status === 'registered' ? `
-                                        <div class="flex gap-2">
-                                            <button onclick="handleMarkSingleAttendance('${eventId}', '${att.userId}', 'attended')" 
-                                                class="px-3 py-1 bg-green-600 text-white rounded-lg text-xs">Present</button>
-                                            <button onclick="handleMarkSingleAttendance('${eventId}', '${att.userId}', 'absent')" 
-                                                class="px-3 py-1 bg-red-600 text-white rounded-lg text-xs">Absent</button>
-                                        </div>
-                                    ` : `
-                                        <span class="text-xs font-semibold">${att.status}</span>
-                                    `}
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                `;
-            }
-
-            if (currentUserData?.role === 'admin' && currentView === 'main') {
-                setTimeout(() => setAdminTab('events'), 100);
-            }
-        }
-
-        function renderAdminTagsTab() {
+        function renderAdminEventsTab() {
             return `<div>
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Tag Management</h2>
-                    <div class="flex gap-2">
-                        <input type="text" id="new-tag-input" placeholder="New tag name" class="px-4 py-2 border rounded-lg" />
-                        <button onclick="handleCreateTag()" class="sdipp-btn sdipp-btn-primary">+ Add Tag</button>
-                    </div>
+                    <h2 class="text-2xl font-bold">Event Management</h2>
+                    <button onclick="showCreateEventModal()" class="sdipp-btn sdipp-btn-primary">+ Create Event</button>
+                </div>
+                <div class="sdipp-card overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-sm font-semibold">Event</th>
+                                <th class="px-6 py-3 text-left text-sm font-semibold">Date</th>
+                                <th class="px-6 py-3 text-left text-sm font-semibold">Registered</th>
+                                <th class="px-6 py-3 text-left text-sm font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            ${allEvents.map(e => `<tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    <p class="font-semibold">${e.title}</p>
+                                    <div class="flex gap-1 mt-1">
+                                        ${(e.tags || []).slice(0,2).map(t => `<span class="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded">${t}</span>`).join('')}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-sm">${formatDate(e.date)}</td>
+                                <td class="px-6 py-4 font-semibold">${e.registeredCount || 0}/${e.maxCapacity}</td>
+                                <td class="px-6 py-4">
+                                    <button onclick="showEditEventModal('${e.id}')" class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
+                                    <button onclick="handleDeleteEvent('${e.id}')" class="text-red-600 hover:text-red-800">Delete</button>
+                                </td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
+        function renderAdminRewardsTab() {
+            return `<div>
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Reward Management</h2>
+                    <button onclick="showCreateRewardModal()" class="sdipp-btn sdipp-btn-primary">+ Create Reward</button>
                 </div>
                 <div class="grid md:grid-cols-3 gap-4">
-                    ${allTags.map(t => `
-                        <div class="sdipp-card p-4 flex justify-between items-center">
-                            <span class="font-semibold">${t.name}</span>
-                            <button onclick="handleDeleteTag('${t.id}')" class="text-red-600 hover:text-red-800">Delete</button>
+                    ${allRewards.map(r => `<div class="sdipp-card p-6 text-center">
+                        <div class="text-5xl mb-3">${r.icon || '🎁'}</div>
+                        <h3 class="font-bold text-lg mb-2">${r.name}</h3>
+                        <p class="text-sm text-gray-600 mb-3">${r.description || ''}</p>
+                        <p class="text-2xl font-bold text-red-600 mb-4">${r.pointsCost} pts</p>
+                        <div class="flex gap-2">
+                            <button onclick="showEditRewardModal('${r.id}')" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Edit</button>
+                            <button onclick="handleDeleteReward('${r.id}')" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Delete</button>
                         </div>
-                    `).join('')}
+                    </div>`).join('')}
                 </div>
             </div>`;
         }
@@ -1159,21 +613,17 @@
                 <div class="space-y-4">
                     ${allEvents.map(e => {
                         const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-                        return `
-                            <div class="sdipp-card p-6">
-                                <div class="flex justify-between mb-4">
-                                    <div>
-                                        <h3 class="text-xl font-bold">${e.title}</h3>
-                                        <p class="text-sm text-gray-600">${d.toLocaleDateString()}</p>
-                                    </div>
-                                    ${(e.registeredCount || 0) > 0 ? 
-                                        `<button onclick="handleMarkAllAttended('${e.id}')" class="sdipp-btn sdipp-btn-primary">✓ Mark All</button>` : 
-                                        ''
-                                    }
+                        return `<div class="sdipp-card p-6">
+                            <div class="flex justify-between mb-4">
+                                <div>
+                                    <h3 class="text-xl font-bold">${e.title}</h3>
+                                    <p class="text-sm text-gray-600">${d.toLocaleDateString()}</p>
                                 </div>
-                                <div id="attendance-${e.id}"></div>
+                                ${(e.registeredCount || 0) > 0 ? 
+                                    `<button onclick="handleMarkAllAttended('${e.id}')" class="sdipp-btn sdipp-btn-primary">✓ Mark All</button>` : ''}
                             </div>
-                        `;
+                            <div id="attendance-${e.id}"></div>
+                        </div>`;
                     }).join('')}
                 </div>
             </div>`;
@@ -1195,52 +645,133 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y">
-                            ${volunteers.map(v => `
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 font-semibold">${v.firstName} ${v.lastName}</td>
-                                    <td class="px-6 py-4 text-sm">${v.email}</td>
-                                    <td class="px-6 py-4 font-semibold text-blue-600">${v.hours || 0}</td>
-                                    <td class="px-6 py-4">
-                                        ${v.isProbation ? '<span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded">Probation</span>' :
-                                          !v.isTrainingCompleted ? '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">Training Req</span>' :
-                                          '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">Active</span>'}
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <button onclick="showVolunteerDetail('${v.id}')" class="text-blue-600 hover:text-blue-800">View</button>
-                                    </td>
-                                </tr>
-                            `).join('')}
+                            ${volunteers.map(v => `<tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 font-semibold">${v.firstName} ${v.lastName}</td>
+                                <td class="px-6 py-4 text-sm">${v.email}</td>
+                                <td class="px-6 py-4 font-semibold text-blue-600">${v.hours || 0}</td>
+                                <td class="px-6 py-4">
+                                    ${v.isProbation ? '<span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded">Probation</span>' :
+                                      !v.isTrainingCompleted ? '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">Training Req</span>' :
+                                      '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">Active</span>'}
+                                </td>
+                                <td class="px-6 py-4">
+                                    <button onclick="showVolunteerDetail('${v.id}')" class="text-blue-600 hover:text-blue-800">View</button>
+                                </td>
+                            </tr>`).join('')}
                         </tbody>
                     </table>
                 </div>
             </div>`;
         }
 
-        async function loadData() {
-            if (currentUser) {
-                currentUserData = await getCurrentUserData(currentUser.uid);
-                allEvents = await getAllEvents();
-                allRewards = await getAllRewards();
-                allTags = await getAllTags();
-                if (currentUserData?.role === 'admin') {
-                    allVolunteers = await getAllVolunteers();
-                }
-            }
+        function renderVolunteerDetailPage() {
+            const v = allVolunteers.find(vol => vol.id === selectedVolunteerId);
+            if (!v) { currentView = 'main'; render(); return ''; }
+            return `<div class="min-h-screen bg-gray-50">
+                <header class="bg-white shadow-sm border-b">
+                    <div class="max-w-7xl mx-auto px-6 py-4">
+                        <button onclick="backToAdmin()" class="text-blue-600 mb-2">← Back</button>
+                        <h1 class="text-2xl font-bold">${v.firstName} ${v.lastName}</h1>
+                    </div>
+                </header>
+                <div class="max-w-7xl mx-auto px-6 py-8">
+                    <div class="grid md:grid-cols-4 gap-4 mb-8">
+                        <div class="sdipp-card p-6"><p class="text-sm mb-1">Hours</p><p class="text-3xl font-bold text-blue-600">${v.hours || 0}</p></div>
+                        <div class="sdipp-card p-6"><p class="text-sm mb-1">Points</p><p class="text-3xl font-bold text-green-600">${v.points || 0}</p></div>
+                        <div class="sdipp-card p-6"><p class="text-sm mb-1">Rank</p><p class="text-2xl font-bold">${v.rank || 'Novice'}</p></div>
+                        <div class="sdipp-card p-6"><p class="text-sm mb-1">Absences</p><p class="text-3xl font-bold text-red-600">${v.absences || 0}</p></div>
+                    </div>
+                    <div class="sdipp-card p-6">
+                        <h3 class="font-bold mb-4">Event History</h3>
+                        <div id="volunteer-event-history">Loading...</div>
+                    </div>
+                </div>
+            </div>`;
         }
 
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            if (user) {
-                showLoading();
-                await loadData();
-                hideLoading();
-            }
-            render();
-        });
+        function renderEventForm(event = null) {
+            const isEdit = !!event;
+            const eventDate = isEdit && event.date?.toDate ? event.date.toDate().toISOString().split('T')[0] : '';
+            return `<form id="event-form" class="space-y-4" onsubmit="handleEventFormSubmit(event, ${isEdit})">
+                <input type="text" id="event-title" placeholder="Event Title *" value="${isEdit ? event.title : ''}" class="w-full px-4 py-2 border rounded-lg" required />
+                <div class="grid grid-cols-3 gap-4">
+                    <input type="date" id="event-date" value="${eventDate}" class="px-4 py-2 border rounded-lg" required />
+                    <input type="time" id="event-start" value="${isEdit ? event.startTime : ''}" class="px-4 py-2 border rounded-lg" required />
+                    <input type="time" id="event-end" value="${isEdit ? event.endTime : ''}" class="px-4 py-2 border rounded-lg" required />
+                </div>
+                <input type="text" id="event-location" placeholder="Location *" value="${isEdit ? event.location : ''}" class="w-full px-4 py-2 border rounded-lg" required />
+                <input type="url" id="event-location-link" placeholder="Google Maps Link" value="${isEdit ? event.locationLink || '' : ''}" class="w-full px-4 py-2 border rounded-lg" />
+                <div>
+                    <label class="font-semibold mb-2 block">Tags:</label>
+                    <div class="grid grid-cols-3 gap-2">${allTags.map(t => 
+                        `<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="event-tags" value="${t}" ${isEdit && event.tags?.includes(t) ? 'checked' : ''} class="rounded" />${t}</label>`
+                    ).join('')}</div>
+                </div>
+                <textarea id="event-description" placeholder="Description" class="w-full px-4 py-2 border rounded-lg h-24">${isEdit ? event.description || '' : ''}</textarea>
+                <div class="grid grid-cols-3 gap-4">
+                    <div><label class="text-sm mb-1 block">Capacity</label><input type="number" id="event-capacity" value="${isEdit ? event.maxCapacity : 20}" class="w-full px-4 py-2 border rounded-lg" required /></div>
+                    <div><label class="text-sm mb-1 block">Hours</label><input type="number" id="event-hours" value="${isEdit ? event.hoursAwarded || 0 : 0}" class="w-full px-4 py-2 border rounded-lg" step="0.5" /></div>
+                    <div><label class="text-sm mb-1 block">Points</label><input type="number" id="event-points" value="${isEdit ? event.pointsAwarded || 0 : 0}" class="w-full px-4 py-2 border rounded-lg" /></div>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeModal('event-modal')" class="flex-1 px-6 py-3 border rounded-lg">Cancel</button>
+                    <button type="submit" class="flex-1 sdipp-btn sdipp-btn-primary">${isEdit ? 'Update' : 'Create'}</button>
+                </div>
+            </form>`;
+        }
 
-        render();
+        function renderRewardForm(reward = null) {
+            const isEdit = !!reward;
+            return `<form id="reward-form" class="space-y-4" onsubmit="handleRewardFormSubmit(event, ${isEdit})">
+                <input type="text" id="reward-name" placeholder="Reward Name *" value="${isEdit ? reward.name : ''}" class="w-full px-4 py-2 border rounded-lg" required />
+                <input type="text" id="reward-icon" placeholder="Icon (emoji)" value="${isEdit ? reward.icon || '' : '🎁'}" class="w-full px-4 py-2 border rounded-lg" />
+                <textarea id="reward-description" placeholder="Description" class="w-full px-4 py-2 border rounded-lg h-20">${isEdit ? reward.description || '' : ''}</textarea>
+                <input type="number" id="reward-cost" placeholder="Points Cost *" value="${isEdit ? reward.pointsCost : ''}" class="w-full px-4 py-2 border rounded-lg" required />
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeModal('reward-modal')" class="flex-1 px-6 py-3 border rounded-lg">Cancel</button>
+                    <button type="submit" class="flex-1 sdipp-btn sdipp-btn-primary">${isEdit ? 'Update' : 'Create'}</button>
+                </div>
+            </form>`;
+        }
 
-    window.handleRedeemReward = async (rewardId) => {
+        // EVENT HANDLERS
+        function attachEventListeners() {
+            window.showSignup = () => { document.getElementById('login-form').classList.add('hidden'); document.getElementById('signup-form').classList.remove('hidden'); };
+            window.showLogin = () => { document.getElementById('signup-form').classList.add('hidden'); document.getElementById('login-form').classList.remove('hidden'); };
+            
+            window.handleLogin = async () => {
+                const email = document.getElementById('login-email').value.trim();
+                const password = document.getElementById('login-password').value;
+                const errorDiv = document.getElementById('login-error');
+                if (!email || !password) { errorDiv.textContent = 'Fill all fields'; errorDiv.classList.remove('hidden'); return; }
+                errorDiv.classList.add('hidden');
+                const r = await signIn(email, password);
+                if (!r.success) { errorDiv.textContent = r.error; errorDiv.classList.remove('hidden'); }
+            };
+            
+            window.handleSignup = async () => {
+                const firstName = document.getElementById('signup-firstname').value.trim();
+                const lastName = document.getElementById('signup-lastname').value.trim();
+                const email = document.getElementById('signup-email').value.trim();
+                const password = document.getElementById('signup-password').value;
+                const errorDiv = document.getElementById('signup-error');
+                const interests = Array.from(document.querySelectorAll('input[name="interests"]:checked')).map(el => el.value);
+                const population = Array.from(document.querySelectorAll('input[name="population"]:checked')).map(el => el.value);
+                const emailNotifications = document.getElementById('email-consent').checked;
+                if (!firstName || !lastName || !email || !password || !interests.length || !population.length) {
+                    errorDiv.textContent = 'Fill all required fields'; errorDiv.classList.remove('hidden'); return;
+                }
+                errorDiv.classList.add('hidden');
+                const r = await signUp(email, password, { firstName, lastName, interests, population, emailNotifications });
+                if (!r.success) { errorDiv.textContent = r.error; errorDiv.classList.remove('hidden'); }
+            };
+            
+            window.handleLogout = logOut;
+            window.handleRegister = async (eventId) => {
+                const r = await registerForEvent(eventId, currentUser.uid);
+                if (r.success) { await loadData(); render(); } else alert(r.error);
+            };
+            window.handleRedeemReward = async (rewardId) => {
                 if (confirm('Redeem this reward?')) {
                     const r = await redeemReward(rewardId, currentUser.uid);
                     if (r.success) { alert('Redeemed!'); await loadData(); render(); } else alert(r.error);
@@ -1455,6 +986,6 @@
         });
 
         render();
-</script>
+    </script>
 </body>
 </html>
