@@ -172,9 +172,10 @@
         async function createEvent(eventData) {
             try {
                 const eventRef = doc(collection(db, 'events'));
+                const eventDate = new Date(eventData.date + 'T00:00:00');
                 await setDoc(eventRef, {
                     ...eventData,
-                    date: Timestamp.fromDate(new Date(eventData.date)),
+                    date: Timestamp.fromDate(eventDate)),
                     registeredCount: 0,
                     registeredVolunteers: [],
                     createdBy: currentUser.uid,
@@ -189,7 +190,9 @@
         async function updateEvent(eventId, eventData) {
             try {
                 const updateData = { ...eventData };
-                if (eventData.date) updateData.date = Timestamp.fromDate(new Date(eventData.date));
+                if (eventData.date) {
+                    const eventDate = new Date(eventData.date + 'T00:00:00');
+                    updateData.date = Timestamp.fromDate(eventDat);
                 await updateDoc(doc(db, 'events', eventId), updateData);
                 return { success: true };
             } catch (error) {
@@ -476,7 +479,7 @@
                                     ).join('')}</div>
                                     <p class="text-sm mb-3">${e.description || ''}</p>
                                     <p class="text-sm text-gray-600 mb-3">📅 ${d.toLocaleDateString()} • ${e.startTime}-${e.endTime}<br>⏱️ ${e.hoursAwarded || 0}h • ${e.pointsAwarded || 0}pts</p>
-                                    <button onclick="handleRegister('${e.id}')" ${!canReg || isFull ? 'disabled' : ''} 
+                                    <button onclick="showEventDetails('${e.id}')" ${!canReg || isFull ? 'disabled' : ''} 
                                         class="sdipp-btn w-full ${!canReg || isFull ? 'bg-gray-200 text-gray-400' : 'sdipp-btn-primary'}">
                                         ${isFull ? 'Full' : !canReg ? 'Locked' : 'Register'}
                                     </button>
@@ -770,8 +773,127 @@
             window.handleLogout = logOut;
             window.handleRegister = async (eventId) => {
                 const r = await registerForEvent(eventId, currentUser.uid);
-                if (r.success) { await loadData(); render(); } else alert(r.error);
+                if (r.success) {
+                    showConfetti();
+                    document.getElementById('success-modal').classList.add('show');
+                    await loadData();
+                    render();
+                } else {
+                    alert(r.error);
+                }
             };
+
+            window.showEventDetails = (eventId) => {
+                const event = allEvents.find(e => e.id === eventId);
+                if (!event) return;
+                const d = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+                const isRegistered = currentUserData.registeredEvents?.includes(eventId);
+                const isFull = event.registeredCount >= event.maxCapacity;
+                const isTraining = event.tags?.some(t => t.toLowerCase().includes('general training'));
+                const canReg = !currentUserData.isProbation && (currentUserData.isTrainingCompleted || isTraining);
+                
+                let questionsHTML = '';
+                if (event.questions && event.questions.length > 0 && !isRegistered) {
+                    questionsHTML = '<div class="space-y-4 mb-6 border-t pt-4">';
+                    questionsHTML += '<h3 class="font-bold text-lg text-gray-900 mb-3">📋 Registration Questions</h3>';
+                    event.questions.forEach((q, i) => {
+                        questionsHTML += `
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label class="font-semibold mb-3 block text-gray-900">${q.question}</label>
+                        <div class="space-y-2">
+                        ${q.options.map(opt => `
+                        <label class="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded transition">
+                        <input type="radio" name="question-${i}" value="${opt}" class="rounded" required />
+                        <span class="text-gray-700">${opt}</span>
+                        </label>
+                        `).join('')}
+                        </div>
+                        </div>
+                        `;
+                    });
+                    questionsHTML += '</div>';
+                }
+                const content = `
+                <div class="flex justify-between items-start mb-4">
+                <h2 class="text-2xl font-bold text-gray-900">${event.title}</h2>
+                <button onclick="closeModal('event-details-modal')" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                </div>
+                <div class="space-y-4">
+                <div class="flex flex-wrap gap-2">
+                ${(event.tags || []).map(t => `<span class="px-3 py-1 ${t.toLowerCase().includes('general training') ? 'bg-purple-100 text-purple-700' : 'bg-red-50 text-red-700'} rounded-lg text-sm font-medium">${t}</span>`).join('')}
+                </div>
+                <div class="bg-gradient-to-br from-gray-50 to-blue-50 p-5 rounded-lg border border-gray-200 space-y-3">
+                <div class="flex items-start gap-3">
+                <span class="text-2xl">📅</span>
+                <div>
+                <p class="font-semibold text-gray-900">Date</p>
+                <p class="text-gray-700">${d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                </div>
+                </div>
+                <div class="flex items-start gap-3">
+                <span class="text-2xl">🕐</span>
+                <div>
+                <p class="font-semibold text-gray-900">Time</p>
+                <p class="text-gray-700">${event.startTime || ''} - ${event.endTime || ''}</p>
+                </div>
+                </div>
+                <div class="flex items-start gap-3">
+                <span class="text-2xl">📍</span>
+                <div>
+                <p class="font-semibold text-gray-900">Location</p>
+                <p class="text-gray-700">${event.location || ''}</p>
+                ${event.locationLink ? `<a href="${event.locationLink}" target="_blank" class="text-blue-600 hover:underline font-medium inline-flex items-center gap-1 mt-1">🗺️ View on Google Maps →</a>` : ''}
+                </div>
+                </div>
+                <div class="flex items-start gap-3">
+                <span class="text-2xl">⏱️</span>
+                <div>
+                <p class="font-semibold text-gray-900">Rewards</p>
+                <p class="text-gray-700">${event.hoursAwarded || 0} hours • ${event.pointsAwarded || 0} points</p>
+                <p class="text-sm text-green-600 font-medium">+5 bonus points for registering!</p>
+                </div>
+                </div>
+                </div>
+                ${event.description ? `<div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded"><p class="text-sm font-semibold text-blue-900 mb-1">About This Event</p><p class="text-gray-700">${event.description}</p></div>` : ''}
+                ${isRegistered ? `<div class="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg"><p class="text-green-800 font-semibold flex items-center gap-2"><span class="text-2xl">✅</span>You are registered for this event!</p></div>` : ''}
+                ${questionsHTML}
+                ${!isRegistered ? `<button onclick="handleRegisterFromModal('${eventId}')" ${!canReg || isFull ? 'disabled' : ''} class="sdipp-btn w-full text-lg py-4 ${!canReg || isFull ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'sdipp-btn-primary'}">${isFull ? '❌ Event Full' : !canReg ? '🔒 ' + (currentUserData.isProbation ? 'On Probation' : 'Complete Training First') : '🎉 Register Now'}</button>` : ''}
+                </div>
+                `;
+                document.getElementById('event-details-content').innerHTML = content;
+                document.getElementById('event-details-modal').classList.add('show');
+            };
+            
+            window.handleRegisterFromModal = async (eventId) => {
+                const event = allEvents.find(e => e.id === eventId);
+                const answers = {};
+                if (event.questions && event.questions.length > 0) {
+                    for (let i = 0; i < event.questions.length; i++) {
+                        const selected = document.querySelector(`input[name="question-${i}"]:checked`);
+                        if (!selected) {
+                            alert(`⚠️ Please answer: ${event.questions[i].question}`);
+                            return;
+                        }
+                        answers[`question_${i}`] = selected.value;
+                        answers[`question_text_${i}`] = event.questions[i].question;
+                    }
+                }
+                const result = await registerForEvent(eventId, currentUser.uid, answers);
+                if (result.success) {
+                    closeModal('event-details-modal');
+                    showConfetti();
+                    document.getElementById('success-modal').classList.add('show');
+                    await loadData();
+                    render();
+                } else {
+                    alert('❌ ' + result.error);
+                }
+            };
+            
+            window.closeModal = (modalId) => {
+                document.getElementById('modal').classList.remove('show');
+            };
+
             window.handleRedeemReward = async (rewardId) => {
                 if (confirm('Redeem this reward?')) {
                     const r = await redeemReward(rewardId, currentUser.uid);
